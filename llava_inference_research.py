@@ -36,7 +36,7 @@ def predict(folder_path, controller_url = "http://0.0.0.0:10000/worker_generate_
     prompt = f"USER: Here are {number_of_images} images of a sidewalk location in the city of Detroit: {image_token_string}."
     prompt += f"In order to install a curbside EV charging station such as the one in this picture <image>,"
     prompt += f"there must be a parking spot on the side of the street, enough space on the sidewalk, and there must not be any impediment such as fire hydrants, trees or tram rails."
-    prompt += f"Consider the sidewalk in the pictures. Would it be feasible to install a curbside EV charging station at this exact location? </s> ASSISTANT:" 
+    prompt += f"Consider the sidewalk in the pictures. Would it be feasible to install a curbside EV charging station at this exact location? Answer yes or no. </s> ASSISTANT:" 
 
     
     data = {
