@@ -70,7 +70,7 @@ def predict(folder_path, controller_url = "http://0.0.0.0:10000/worker_generate_
 
 
 if __name__ == "__main__":
-    data_path = 'example_data/47_225_42.32507295974896_-83.0523860567444'
+    data_path = 'example_data/47_225_42.32507295974896_-83.0523860567444/'
     controller_url = "http://0.0.0.0:10000/worker_generate_stream"
 
     answer = predict(data_path, controller_url = controller_url)
