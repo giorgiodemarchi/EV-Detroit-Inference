@@ -1,0 +1,7 @@
+Latitude: 42.32507295974896
+Longitude: -83.0523860567444
+                    
+Headings: [165, 195, 225, 255, 285]
+                    
+Address: N/A
+Label: 2
