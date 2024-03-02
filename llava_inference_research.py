@@ -20,19 +20,23 @@ def resize_and_encode_image(image, output_size=(300, 300)):
 
 
 def predict(folder_path, controller_url = "http://0.0.0.0:10000/worker_generate_stream"):
-    frames = read_images(folder_path)
 
+    frames = read_images(folder_path)
     encoded_images = [resize_and_encode_image(image) for image in frames]
     number_of_images = len(encoded_images)
-
     image_token_string = ""
     for _ in range(number_of_images):
         image_token_string += "<image> "
 
+    # Example image
+    example_image = Image.open('example_data/example_ev_station.jpg')
+    example_image = resize_and_encode_image(example_image)
+    encoded_images += example_image
+
     prompt = f"USER: Here are {number_of_images} images of a sidewalk location in the city of Detroit: {image_token_string}."
-    prompt += f"In order to install a curbside EV charging station (those that allow cars that are parked on a street side to be plugged in),"
-    prompt += f"there must be a curbside parking spot, enough space on the sidewalk, and there must not be any impediment such as fire hydrants."
-    prompt += f"Consider the sidewalk in the picture. Would it be feasible to install a curbside EV charging station at this exact location? </s> ASSISTANT:" 
+    prompt += f"In order to install a curbside EV charging station such as the one in this picture <image>."
+    prompt += f"there must be a parking spot, enough space on the sidewalk, and there must not be any impediment such as fire hydrants."
+    prompt += f"Consider the sidewalk in the pictures. Would it be feasible to install a curbside EV charging station at this exact location? </s> ASSISTANT:" 
 
     
     data = {
