@@ -31,8 +31,7 @@ def predict(folder_path, controller_url = "http://0.0.0.0:10000/worker_generate_
     # Example image
     example_image = Image.open('example_data/example_ev_station.jpg')
     example_image = resize_and_encode_image(example_image)
-    encoded_images.append(example_image)
-    encoded_images.append(example_image)
+    encoded_images.insert(0, example_image)
 
     #prompt = f"USER: Here are {number_of_images} images of a sidewalk location in the city of Detroit: {image_token_string}."
     prompt = f"In order to install a curbside EV charging station such as the one in this picture <image>."
