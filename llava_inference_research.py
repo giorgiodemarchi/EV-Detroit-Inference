@@ -6,43 +6,9 @@ import requests
 import re
 import cv2 
 
-
-def read_video(video_path, freq):
-    """
-    Reads video and capture a frame every 5 seconds.
-    video_path: can also be a URL
-    freq: frequency of extracted frames. E.g. if freq = 5, one frame every 5 seconds is extracted
-    """
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        print("Error: Could not open video.")
-        exit()
-
-    # frame rate of the video
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    # number of frames to skip
-    skip_frames = int(fps * freq)
-
-    # Extract a frame every 3 secs
-    frame_count = 0
-    extracted_frames = []
-    while True:
-        success, frame = cap.read()
-        if not success:
-            break  # Exit the loop if we've reached the end of the video
-
-        # Check if this frame is at a 5-second interval
-        if frame_count % skip_frames == 0:
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            pil_img = Image.fromarray(frame)
-            extracted_frames.append(pil_img)
-
-        frame_count += 1
-
-    # Release the video capture object
-    cap.release()
-    cv2.destroyAllWindows()
-    return extracted_frames
+def read_images(path):
+    images = [Image.open(path + f"image_{i}.png") for i in [0,2,4]]
+    return images
 
 def resize_and_encode_image(image, output_size=(300, 300)):
     image.thumbnail(output_size)
@@ -53,36 +19,22 @@ def resize_and_encode_image(image, output_size=(300, 300)):
     return encoded_string
 
 
-def predict(video_file, mode, controller_url = "http://0.0.0.0:10000/worker_generate_stream", freq = 5):
-    """
-    video_file: either a local file or a url
-    mode: "SFX" / "AMBIENCE" / "CAPTION"
-    controller_url: 
-    freq: frequency of frames extraction from video.
-
-    TODO: Scene splitting and logic to provide multiple scenes
-    """
-    frames = read_video(video_file, freq)
+def predict(folder_path, controller_url = "http://0.0.0.0:10000/worker_generate_stream"):
+    frames = read_images(folder_path)
 
     encoded_images = [resize_and_encode_image(image) for image in frames]
     number_of_images = len(encoded_images)
-
 
     image_token_string = ""
     for _ in range(number_of_images):
         image_token_string += "<image> "
 
-    # prompt = f"USER: Here are {number_of_images} frames extracted from a video, in chronological order. Describe what is happening in the video. {image_token_string} </s>ASSISTANT:"
-    prompt = f"USER: Here are {number_of_images} frames extracted from a video, in chronological order: {image_token_string}."
-    if mode == 'CAPTION':
-        prompt += "Describe what is happening in the video. </s> ASSISTANT:"
-    else:
-        prompt += "I want you to assist me in desining the best sound for this video. Using your understanding of what is happening in the video, including actions, objects, and scene, answer the following question: "
-        if mode == 'SFX':
-            prompt += "What sound effects would you expect to hear when watching the video? Provide a description suitable for searching in a sound library. </s> ASSISTANT:"
-        else:
-            prompt += "What ambience sounds would you expect to hear when watching the video? Provide a description suitable for searching in a sound library. </s> ASSISTANT:"
+    prompt = f"USER: Here are {number_of_images} images of a sidewalk location in the city of Detroit: {image_token_string}."
+    prompt += f"In order to install a curbside EV charging station (those that allow cars that are parked on a street side to be plugged in),"
+    prompt += f"there must be a curbside parking spot, enough space on the sidewalk, and there must not be any impediment such as fire hydrants."
+    prompt += f"Consider the sidewalk in the picture. Would it be feasible to install a curbside EV charging station at this exact location? </s> ASSISTANT:" 
 
+    
     data = {
         "prompt": prompt,
         "images": encoded_images,
@@ -102,7 +54,6 @@ def predict(video_file, mode, controller_url = "http://0.0.0.0:10000/worker_gene
                 decoded_chunk = chunk.decode('utf-8').rstrip('\0')
                 accumulated_response.append(decoded_chunk)
         # Join accumulated chunks and then process as a whole
-        # complete_response = ''.join(accumulated_response).replace('\0', '')  # Removing null characters globally
         input_string = decoded_chunk.replace('\0','')
         matches = re.findall(r'\{(.*?)\}', input_string)
 
@@ -119,10 +70,8 @@ def predict(video_file, mode, controller_url = "http://0.0.0.0:10000/worker_gene
 
 
 if __name__ == "__main__":
-    video_file = 'cyclist.mp4'  # Can also be a url
+    data_path = 'example_data/47_225_42.32507295974896_-83.0523860567444'
     controller_url = "http://0.0.0.0:10000/worker_generate_stream"
-    freq = 5
-    mode = "CAPTION"
 
-    answer = predict(video_file, mode, controller_url = controller_url, freq = freq)
+    answer = predict(data_path, controller_url = controller_url)
     print(answer)
