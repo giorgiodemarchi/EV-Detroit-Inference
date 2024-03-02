@@ -5,6 +5,7 @@ import base64
 import requests
 import re
 import cv2 
+from openai import OpenAI
 
 def read_images(path):
     images = [Image.open(path + f"image_{i}.png") for i in [0,2,4]]
@@ -37,7 +38,6 @@ def predict(folder_path, controller_url = "http://0.0.0.0:10000/worker_generate_
     prompt += f"In order to install a curbside EV charging station such as the one in this picture <image>,"
     prompt += f"there must be a parking spot on the side of the street, enough space on the sidewalk, and there must not be any impediment such as fire hydrants, trees or tram rails."
     prompt += f"Consider the sidewalk in the pictures. Would it be feasible to install a curbside EV charging station at this exact location? Answer yes or no. </s> ASSISTANT:" 
-
     
     data = {
         "prompt": prompt,
@@ -77,5 +77,19 @@ if __name__ == "__main__":
     data_path = 'example_data/83_405_42.33723835878146_-83.05092438120533/'
     controller_url = "http://0.0.0.0:10000/worker_generate_stream"
 
-    answer = predict(data_path, controller_url = controller_url)
+    answer = predict(data_path, controller_url = controller_url) 
+    print("LLaVA ANSWER: ")
     print(answer)
+    
+    client = OpenAI(api_key = "AHAHAHA")
+    response = client.chat.completions.create(
+    model="gpt-3.5-turbo-0125",
+    response_format={ "type": "json_object" },
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant designed to output JSON. You will interpret an answer text provided by an expert and classify as 1 or 0. The returned json will include an attribute 'feasible' that must be associated with either one of those labels."},
+        {"role": "user", "content": f"Is this response indicative that it is feasible or infeasible to install a curbside EV charging station? {answer}"}
+    ]
+    )
+    print("FINAL OUTPUT: ")
+    print(response.choices[0].message.content)
+    
