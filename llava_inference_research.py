@@ -4,12 +4,45 @@ import json
 import base64
 import requests
 import re
-import cv2 
 from openai import OpenAI
+import boto3
+import numpy as np
+import pandas as pd
+
+AWS_ACCESS_KEY_ID = "ahah"
+AWS_SECRET_ACCESS_KEY_ID = "ahahah"
+OPENAI_API_KEY = "AHAH"
+BUCKET_NAME = 'detroit-project-data-bucket'
+DIRECTORY_NAME = 'DetroitImageDataset_v2/'
+
+s3_client = boto3.client('s3', aws_access_key_id=AWS_ACCESS_KEY_ID, aws_secret_access_key=AWS_SECRET_ACCESS_KEY_ID)
+
+def get_folder_names():
+    paginator = s3_client.get_paginator('list_objects_v2')
+    response_iterator = paginator.paginate(
+        Bucket=BUCKET_NAME,
+        Prefix=DIRECTORY_NAME,
+        Delimiter='/'
+    )
+
+    folder_names = []
+    for response in response_iterator:
+        if response.get('CommonPrefixes') is not None:
+            for prefix in response.get('CommonPrefixes'):
+                # Extract the folder name from the prefix key
+                folder_name = prefix.get('Prefix')
+                # Removing the base directory and the trailing slash to get the folder name
+                folder_name = folder_name[len(DIRECTORY_NAME):].strip('/')
+                folder_names.append(folder_name)
+
+    return folder_names
 
 def read_images(path):
-    images = [Image.open(path + f"image_{i}.png") for i in [0,2,4]]
-    return images
+    for i in [0,2,4]:
+        image_path = f"{DIRECTORY_NAME}/{path}/image_{i}.png"
+        image_obj = s3_client.get_object(Bucket=BUCKET_NAME, Key=image_path)
+        image = Image.open(io.BytesIO(image_obj['Body'].read()))
+        yield image
 
 def resize_and_encode_image(image, output_size=(300, 300)):
     image.thumbnail(output_size)
@@ -22,7 +55,7 @@ def resize_and_encode_image(image, output_size=(300, 300)):
 
 def predict(folder_path, controller_url = "http://0.0.0.0:10000/worker_generate_stream"):
 
-    frames = read_images(folder_path)
+    frames = list(read_images(folder_path))
     encoded_images = [resize_and_encode_image(image) for image in frames]
     number_of_images = len(encoded_images)
     image_token_string = ""
@@ -72,24 +105,65 @@ def predict(folder_path, controller_url = "http://0.0.0.0:10000/worker_generate_
     except json.JSONDecodeError as e:
         print("Error Decoding JSON:", e)
 
-
-if __name__ == "__main__":
-    data_path = 'example_data/83_405_42.33723835878146_-83.05092438120533/'
-    controller_url = "http://0.0.0.0:10000/worker_generate_stream"
-
-    answer = predict(data_path, controller_url = controller_url) 
-    print("LLaVA ANSWER: ")
-    print(answer)
-    
-    client = OpenAI(api_key = "AHAHAHA")
+def process_with_openai(answer):
+    client = OpenAI(api_key = OPENAI_API_KEY)
     response = client.chat.completions.create(
     model="gpt-3.5-turbo-0125",
     response_format={ "type": "json_object" },
     messages=[
         {"role": "system", "content": "You are a helpful assistant designed to output JSON. You will interpret an answer text provided by an expert and classify as 1 or 0. The returned json will include an attribute 'feasible' that must be associated with either one of those labels."},
         {"role": "user", "content": f"Is this response indicative that it is feasible or infeasible to install a curbside EV charging station? {answer}"}
-    ]
-    )
-    print("FINAL OUTPUT: ")
-    print(response.choices[0].message.content)
+    ])
+    return response.choices[0].message.content
+
+if __name__ == "__main__":
     
+    ids = []
+    angles = []
+    latitudes = []
+    longitudes = []
+    llava_answers = []
+    labels = []
+
+    controller_url = "http://0.0.0.0:10000/worker_generate_stream"
+
+    folders = get_folder_names()
+
+    i=0
+    for datapoint in folders:
+        point_id, angle, latitude, longitude = datapoint.split('_')
+        ids.append(point_id)
+        angles.append(angle)
+        latitudes.append(latitude)
+        longitudes.append(longitude)
+
+        answer = predict(datapoint, controller_url = controller_url) 
+        llava_answers.append(answer)
+        print("LLaVA ANSWER: ")
+        print(answer)
+        
+        json_str = process_with_openai(answer)
+        dict_data = json.loads(json_str)
+        labels.append(dict_data["feasible"])
+        print("JSON:")
+        print(json_str)
+
+        i+=1
+        if i%10==0:
+            print(f"Processed {i} datapoint ({np.round(i/len(folders), 2)*100} %)")
+
+    
+    data = {
+        "id": ids,
+        "angle": angles,
+        "latitude": latitudes,
+        "longitude": longitudes,
+        "predicted_label": labels,
+        "llava_response": llava_answers
+    }
+
+    df = pd.DataFrame(data)
+
+    csv_buffer = io.StringIO()
+    df.to_csv(csv_buffer, index=False)
+    s3_client.put_object(Bucket=BUCKET_NAME, Body=csv_buffer.getvalue(), Key='llava_predictions.csv')
